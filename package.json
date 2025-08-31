@@ -17,6 +17,7 @@
   },
   "homepage": "https://github.com/cipher80/iotProject#readme",
   "dependencies": {
-    "node": "^24.7.0"
+    "node": "^24.7.0",
+    "nodemailer": "^7.0.6"
   }
 }
