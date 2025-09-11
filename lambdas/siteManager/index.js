@@ -1,4 +1,23 @@
-const { DynamoDBClient, PutItemCommand, GetItemCommand, ScanCommand, UpdateItemCommand, BatchGetItemCommand, DeleteItemCommand , QueryCommand } = require("@aws-sdk/client-dynamodb"); const { randomUUID } = require("crypto");
+const { DynamoDBClient, PutItemCommand, GetItemCommand, 
+  ScanCommand, UpdateItemCommand, BatchGetItemCommand,
+   DeleteItemCommand , QueryCommand } =
+require("@aws-sdk/client-dynamodb"); const { randomUUID } = require("crypto");
+
+
+import { CognitoIdentityProviderClient, AdminInitiateAuthCommand } from "@aws-sdk/client-cognito-identity-provider";
+const idp = new CognitoIdentityProviderClient({
+  endpoint: "http://localhost:4566",
+  region: "us-east-1",
+  credentials: { accessKeyId: "test", secretAccessKey: "test" },
+});
+const res = await idp.send(new AdminInitiateAuthCommand({
+  UserPoolId: "<POOL_ID>",
+  ClientId: "<CLIENT_ID>",
+  AuthFlow: "ADMIN_USER_PASSWORD_AUTH",
+  AuthParameters: { USERNAME: "alice", PASSWORD: "P@ssw0rd!" }
+}));
+console.log(res.AuthenticationResult?.IdToken);
+
 
 else if (route === "POST /v1/sites/{siteId}/favorite}") {
   const { siteId } = event.pathParameters;
