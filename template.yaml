@@ -1,0 +1,70 @@
+Resources:
+  DeviceManagerApiLocal:
+    Type: AWS::Serverless::Function
+    Properties:
+      CodeUri: lambdas/DeviceManager
+      Handler: index.handler
+      Runtime: nodejs20.x
+      Architectures: [ x86_64 ]
+      Timeout: 60
+      MemorySize: 1024
+      Environment:
+        Variables:
+          SITES_TABLE: Sites
+          IOTBRIDGES_TABLE: IotBridge     # 👈 match your AWS table
+          IOT_ENDPOINT: a337gszvngme2e-ats.iot.eu-north-1.amazonaws.com
+          # For prod deploys you’ll use Secrets Manager:
+          SECRET_ID: iot/device/certs
+          AWS_REGION: eu-north-1
+      Policies:        # for deploys; not used by sam local
+        - DynamoDBCrudPolicy:
+            TableName: Sites
+        - DynamoDBCrudPolicy:
+            TableName: IotBridge
+        - Statement:
+            Effect: Allow
+            Action: secretsmanager:GetSecretValue
+            Resource: "*"   # narrow to your secret ARN for prod
+      Events:
+        RegisterBridge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/iotbridges
+            Method: POST
+            PayloadFormatVersion: "2.0"
+        DeleteBridge:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/iotbridges/{bridgeId}
+            Method: DELETE
+            PayloadFormatVersion: "2.0"
+        SiteLiveData:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/data
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        BridgeLogs:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/devices/{bridgeId}/logs
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        BridgeAlerts:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/devices/{bridgeId}/alerts
+            Method: GET
+            PayloadFormatVersion: "2.0"
+        UpdateAlertStatus:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref HttpApi
+            Path: /v1/sites/{siteId}/devices/{bridgeId}/alerts/{alertId}
+            Method: PATCH
+            PayloadFormatVersion: "2.0"
