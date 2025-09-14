@@ -1,0 +1,15 @@
+version: "3.9"
+services:
+  localstack:
+    image: localstack/localstack:latest
+    ports:
+      - "4566:4566"        # LocalStack edge
+      - "4510-4559:4510-4559"
+    environment:
+      - SERVICES=lambda,dynamodb,cognito-idp,iot,iotdata,logs,iam,apigateway,sts
+      - DEBUG=1
+      - AWS_DEFAULT_REGION=us-east-1
+      - LAMBDA_EXECUTOR=docker-reuse
+    volumes:
+      - ./bootstrap:/docker-entrypoint-initaws.d  # auto-run scripts
+      - "/var/run/docker.sock:/var/run/docker.sock"
