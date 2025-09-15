@@ -355,6 +355,7 @@ async function sendInvitationEmail({
     ``,
     `Invite ID: ${invitationId}`
   ].join("\n");
+  // below details 
 
   const info = await getTransporter().sendMail({
     from: `"${fromName}" <${fromEmail}>`,
