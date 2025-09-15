@@ -11,7 +11,7 @@ Resources:
       Environment:
         Variables:
           SITES_TABLE: Sites
-          IOTBRIDGES_TABLE: IotBridge     # 👈 match your AWS table
+          IOTBRIDGES_TABLE: IotBridge     
           IOT_ENDPOINT: a337gszvngme2e-ats.iot.eu-north-1.amazonaws.com
           # For prod deploys you’ll use Secrets Manager:
           SECRET_ID: iot/device/certs
