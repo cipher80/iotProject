@@ -51,3 +51,106 @@ async function ensureTableShape() {
 }
 
 
+exports.handler = async (event) => {
+  console.info("EVENT ▶", JSON.stringify(event, null, 2));
+
+  // Authorizer (HTTP API v2) + local fallback
+  let claims = event.requestContext?.authorizer?.jwt?.claims || {};
+  const token = event.headers?.authorization || event.headers?.Authorization;
+  if ((!claims || Object.keys(claims).length === 0) && token?.startsWith("Bearer ")) {
+    try {
+      const raw = token.split(" ")[1];
+      const payload = JSON.parse(Buffer.from(raw.split(".")[1], "base64").toString("utf8"));
+      claims = {
+        ...claims,
+        sub: payload.sub || payload.username || payload["cognito:username"],
+        token_use: payload.token_use
+      };
+    } catch (e) {
+      console.warn("JWT decode failed (local fallback). Proceeding without claims.", e.message);
+    }
+  }
+
+  const userId =
+    claims?.sub ||
+    claims?.username ||
+    claims?.["cognito:username"];
+
+  if (!userId) {
+    console.warn("No suitable user claim on token", { claimKeys: Object.keys(claims || {}) });
+    return { statusCode: 401, body: "Unauthorized" };
+  }
+
+  const userKeyValue = String(userId).trim();
+  const key = { userId: { S: userKeyValue } };
+
+  const shape = await ensureTableShape();
+  if (!shape.ok) {
+    console.warn("[DDB] Proceeding despite table shape check not OK:", shape);
+  } else if (shape.keyName !== "userId" || shape.keyType !== "S") {
+    console.error(
+      `[DDB] Table PK mismatch. Expected userId(S), got ${shape.keyName}(${shape.keyType}).`,
+      { table: TABLE, region: shape.region }
+    );
+  }
+
+  const routeKey = event.requestContext?.routeKey; // e.g. "GET /v1/users/profile"
+  try {
+    if (routeKey === "GET /v1/users/profile") {
+      const { Item } = await ddb.send(new GetItemCommand({
+        TableName: TABLE, Key: key, ConsistentRead: true
+      }));
+      if (!Item) {
+        console.warn("[DDB] User not found", {
+          table: TABLE, region: await resolveRegion(), keySent: key, token_use: claims?.token_use
+        });
+        return { statusCode: 404, body: "User not found" };
+      }
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          userId: userKeyValue,
+          email: Item.email?.S,
+          createdAt: Item.createdAt?.S || Item.timestamp?.S,
+          company: Item.companyName?.S || null,
+        }),
+      };
+
+    } else if (routeKey === "POST /v1/users/company") {
+      const body = JSON.parse(event.body || "{}");
+      const name = body.companyName || body.company;
+      if (!name) return { statusCode: 400, body: "Must provide companyName" };
+
+      const { Item } = await ddb.send(new GetItemCommand({
+        TableName: TABLE, Key: key, ConsistentRead: true
+      }));
+      if (!Item) {
+        console.warn("[DDB] User not found on update", {
+          table: TABLE, region: await resolveRegion(), keySent: key, token_use: claims?.token_use
+        });
+        return { statusCode: 404, body: "User not found" };
+      }
+
+      await ddb.send(new UpdateItemCommand({
+        TableName: TABLE,
+        Key: key,
+        UpdateExpression: "SET companyName = :c",
+        ExpressionAttributeValues: { ":c": { S: name } },
+        ConditionExpression: "attribute_exists(userId)"
+      }));
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userKeyValue, email: Item.email?.S, company: name }),
+      };
+    }
+
+    return { statusCode: 404, body: "Not Found" };
+
+  } catch (err) {
+    console.error(err);
+    return { statusCode: 500, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ error: err.message }) };
+  }
+};
