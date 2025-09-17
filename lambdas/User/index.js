@@ -117,7 +117,36 @@ exports.handler = async (event) => {
         }),
       };
 
-    } 
+    } else if (routeKey === "POST /v1/users/company") {
+      const body = JSON.parse(event.body || "{}");
+      const name = body.companyName || body.company;
+      if (!name) return { statusCode: 400, body: "Must provide companyName" };
+
+      const { Item } = await ddb.send(new GetItemCommand({
+        TableName: TABLE, Key: key, ConsistentRead: true
+      }));
+      if (!Item) {
+        console.warn("[DDB] User not found on update", {
+          table: TABLE, region: await resolveRegion(), keySent: key, token_use: claims?.token_use
+        });
+        return { statusCode: 404, body: "User not found" };
+      }
+
+      await ddb.send(new UpdateItemCommand({
+        TableName: TABLE,
+        Key: key,
+        UpdateExpression: "SET companyName = :c",
+        ExpressionAttributeValues: { ":c": { S: name } },
+        ConditionExpression: "attribute_exists(userId)"
+      }));
+
+      return {
+        statusCode: 200,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ userId: userKeyValue, email: Item.email?.S, company: name }),
+      };
+    }
+
     return { statusCode: 404, body: "Not Found" };
 
   } catch (err) {
