@@ -66,6 +66,20 @@ else if (route === "GET /v1/sites/favorites") {
     ProjectionExpression: "favoriteSites"
   }));
 
+  // Parse favoriteSites in a tolerant way (SS preferred; also accept L or JSON string)
+  const parseFavoriteIds = (attr) => {
+    const out = new Set();
+    if (!attr) return out;
+    if (attr.SS) for (const s of attr.SS) out.add(s);
+    else if (attr.L) for (const x of attr.L) { const v = x.S ?? x; if (typeof v === "string") out.add(v); }
+    else if (attr.S) {
+      try {
+        const arr = JSON.parse(attr.S);
+        if (Array.isArray(arr)) for (const v of arr) out.add(String(v));
+      } catch { out.add(attr.S); }
+    }
+    return out;
+  };
 
   const favIds = Array.from(parseFavoriteIds(ures.Item?.favoriteSites));
   if (favIds.length === 0) {
